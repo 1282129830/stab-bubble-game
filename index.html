@@ -18,6 +18,7 @@
             width: 100vw;
             height: 100vh;
             position: relative;
+            touch-action: none;
         }
         .bubble {
             position: absolute;
@@ -103,6 +104,8 @@
             text-align: center;
             display: none;
             z-index: 1001;
+            width: 80%;
+            max-width: 300px;
         }
         #game-over h2 {
             color: white;
@@ -213,8 +216,8 @@
             bubble.style.width = size + 'px';
             bubble.style.height = size + 'px';
             
-            const maxX = container.clientWidth - size;
-            const maxY = container.clientHeight - size;
+            const maxX = window.innerWidth - size;
+            const maxY = window.innerHeight - size;
             bubble.style.left = Math.random() * maxX + 'px';
             bubble.style.bottom = '0px';
 
@@ -224,11 +227,12 @@
             container.appendChild(bubble);
 
             requestAnimationFrame(() => {
-                bubble.style.bottom = container.clientHeight + 'px';
+                bubble.style.bottom = window.innerHeight + 'px';
             });
 
             bubble.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
+                if (bubble.classList.contains('pop')) return; // 防止多次点击
                 bubble.classList.add('pop');
                 
                 let points;
