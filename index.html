@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>泡泡戳戳乐</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+            background: linear-gradient(to bottom, #87CEEB, #1E90FF);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: float 4s infinite ease-in-out;
+        }
+        .bubble-normal {
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(255,255,255,0.4));
+        }
+        .bubble-golden {
+            background: radial-gradient(circle at 30% 30%, rgba(255,215,0,0.8), rgba(218,165,32,0.4));
+            box-shadow: 0 0 10px rgba(255,215,0,0.6);
+        }
+        .bubble-rainbow {
+            background: radial-gradient(circle at 30% 30%, 
+                rgba(255,0,0,0.4), 
+                rgba(255,165,0,0.4), 
+                rgba(255,255,0,0.4), 
+                rgba(0,255,0,0.4), 
+                rgba(0,0,255,0.4));
+            animation: rainbow 2s linear infinite;
+        }
+        @keyframes rainbow {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        .pop {
+            animation: pop 0.3s ease-out;
+            opacity: 0;
+        }
+        @keyframes pop {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+        #score, #life {
+            position: fixed;
+            font-size: 24px;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        #score { top: 20px; }
+        #life { top: 60px; }
+        
+        .btn {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        #game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 1001;
+        }
+        #game-over h2 {
+            color: white;
+            margin-bottom: 20px;
+        }
+        #final-score {
+            color: yellow;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">得分: 0</div>
+    <div id="life">生命值: 3</div>
+    <button id="start-btn" class="btn">点击开始游戏</button>
+    <div id="game-container"></div>
+    <div id="game-over">
+        <h2>游戏结束</h2>
+        <div id="final-score"></div>
+        <button id="restart-btn" class="btn">重新开始</button>
+    </div>
+
+    <script>
+        let score = 0;
+        let lives = 3;
+        let gameStarted = false;
+        const container = document.getElementById('game-container');
+        const scoreElement = document.getElementById('score');
+        const lifeElement = document.getElementById('life');
+        const startBtn = document.getElementById('start-btn');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreElement = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+        
+        let audioContext;
+        let bubbleInterval;
+        
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playPopSound(type) {
+            if (!audioContext) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            switch(type) {
+                case 'normal':
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.1);
+                    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                    break;
+                    
+                case 'golden':
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(300, audioContext.currentTime + 0.15);
+                    gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                    
+                    const highOsc = audioContext.createOscillator();
+                    const highGain = audioContext.createGain();
+                    highOsc.connect(highGain);
+                    highGain.connect(audioContext.destination);
+                    highOsc.type = 'sine';
+                    highOsc.frequency.setValueAtTime(2400, audioContext.currentTime);
+                    highGain.gain.setValueAtTime(0.2, audioContext.currentTime);
+                    highGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                    highOsc.start();
+                    highOsc.stop(audioContext.currentTime + 0.1);
+                    break;
+                    
+                case 'rainbow':
+                    oscillator.type = 'square';
+                    const notes = [523.25, 587.33, 659.25, 698.46, 783.99];
+                    notes.forEach((freq, i) => {
+                        setTimeout(() => {
+                            oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+                        }, i * 30);
+                    });
+                    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                    break;
+            }
+            
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+
+        function createBubble() {
+            if (!gameStarted) return;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            
+            const bubbleTypes = ['normal', 'golden', 'rainbow'];
+            const type = bubbleTypes[Math.floor(Math.random() * bubbleTypes.length)];
+            bubble.classList.add(`bubble-${type}`);
+            
+            const size = Math.random() * 50 + 30;
+            bubble.style.width = size + 'px';
+            bubble.style.height = size + 'px';
+            
+            const maxX = container.clientWidth - size;
+            const maxY = container.clientHeight - size;
+            bubble.style.left = Math.random() * maxX + 'px';
+            bubble.style.bottom = '0px';
+
+            const speed = 2 + Math.random() * 3;
+            bubble.style.transition = `bottom ${speed}s linear`;
+
+            container.appendChild(bubble);
+
+            requestAnimationFrame(() => {
+                bubble.style.bottom = container.clientHeight + 'px';
+            });
+
+            bubble.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                bubble.classList.add('pop');
+                
+                let points;
+                switch(type) {
+                    case 'golden': points = Math.floor(100/size * 20); break;
+                    case 'rainbow': points = Math.floor(150/size * 30); break;
+                    default: points = Math.floor(50/size * 10);
+                }
+                
+                score += points;
+                scoreElement.textContent = `得分: ${score}`;
+                playPopSound(type);
+                setTimeout(() => bubble.remove(), 300);
+            });
+
+            setTimeout(() => {
+                if (container.contains(bubble)) {
+                    bubble.remove();
+                    loseLife(); // 泡泡未被点击逃脱时减少生命值
+                }
+            }, speed * 1000);
+        }
+
+        function loseLife() {
+            lives--;
+            lifeElement.textContent = `生命值: ${lives}`;
+            
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            gameStarted = false;
+            clearInterval(bubbleInterval);
+            
+            // 清除所有现有泡泡
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            
+            finalScoreElement.textContent = `最终得分: ${score}`;
+            gameOverScreen.style.display = 'block';
+        }
+
+        function startGame() {
+            gameStarted = true;
+            score = 0;
+            lives = 3;
+            scoreElement.textContent = `得分: ${score}`;
+            lifeElement.textContent = `生命值: ${lives}`;
+            startBtn.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            if (!audioContext) {
+                initAudio();
+            }
+            
+            bubbleInterval = setInterval(createBubble, 1000);
+
+            for(let i = 0; i < 5; i++) {
+                createBubble();
+            }
+        }
+
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
