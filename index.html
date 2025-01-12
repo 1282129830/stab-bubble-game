@@ -9,6 +9,7 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -31,6 +32,7 @@
             top: 0;
             left: 0;
             overflow: hidden;
+            touch-action: none;
         }
 
         .bubble {
@@ -44,6 +46,11 @@
             pointer-events: auto;
             transform-origin: center center;
             will-change: transform;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            /* 增加点击区域 */
+            padding: 10px;
+            margin: -10px;
         }
 
         .bubble-normal {
@@ -62,7 +69,7 @@
                 rgba(255,255,0,0.4), 
                 rgba(0,255,0,0.4), 
                 rgba(0,0,255,0.4));
-            animation: rainbow 2s linear infinite;
+            animation: rainbow 2s linear infinite, float 4s infinite ease-in-out;
         }
 
         @keyframes rainbow {
@@ -186,13 +193,11 @@
         
         let audioContext;
         let bubbleInterval;
-
-        // 防止双击缩放
-        document.addEventListener('touchstart', function(event) {
-            if (event.touches.length > 1) {
-                event.preventDefault();
-            }
-        }, { passive: false });
+        
+        // 获取视口高度
+        const viewportHeight = window.innerHeight;
+        // 定义安全区域
+        const safeZone = viewportHeight * 0.1; // 视口高度的10%作为安全区域
 
         function initAudio() {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -262,27 +267,32 @@
             const type = bubbleTypes[Math.floor(Math.random() * bubbleTypes.length)];
             bubble.classList.add(`bubble-${type}`);
             
-            // 限制泡泡大小范围
-            const size = Math.random() * 30 + 30; // 30-60px
+            // 减小泡泡实际大小，但保持较大的点击区域
+            const size = Math.random() * 20 + 40; // 40-60px
             bubble.style.width = `${size}px`;
             bubble.style.height = `${size}px`;
             
-            // 确保泡泡在视口内
-            const maxX = container.clientWidth - size;
-            bubble.style.left = Math.max(0, Math.min(maxX, Math.random() * maxX)) + 'px';
+            // 确保泡泡在视口内，考虑padding
+            const maxX = container.clientWidth - size - 20; // 考虑padding
+            bubble.style.left = Math.max(10, Math.min(maxX - 10, Math.random() * maxX)) + 'px';
             bubble.style.bottom = '0px';
 
-            const speed = 2 + Math.random() * 2; // 减小速度变化范围
+            // 减慢上升速度
+            const speed = 3 + Math.random() * 2; // 3-5秒
             bubble.style.transition = `bottom ${speed}s linear`;
 
+            // 用于跟踪泡泡状态
             let isPopped = false;
+            let isRising = true;
             
             const popBubble = (e) => {
-                if (isPopped) return; // 防止多次点击
-                isPopped = true;
+                if (isPopped) return;
                 
                 e.preventDefault();
                 e.stopPropagation();
+                
+                isPopped = true;
+                isRising = false;
                 
                 bubble.classList.add('pop');
                 bubble.style.pointerEvents = 'none';
@@ -305,21 +315,42 @@
                 }, 300);
             };
 
+            // 同时监听触摸和鼠标事件
             bubble.addEventListener('touchstart', popBubble, { passive: false });
             bubble.addEventListener('mousedown', popBubble);
 
             container.appendChild(bubble);
 
+            // 开始上升动画
             requestAnimationFrame(() => {
-                bubble.style.bottom = '100vh';
+                bubble.style.bottom = `${viewportHeight - safeZone}px`;
             });
 
+            // 检查泡泡是否到达顶部
+            const checkInterval = setInterval(() => {
+                if (!isRising || isPopped) {
+                    clearInterval(checkInterval);
+                    return;
+                }
+
+                const rect = bubble.getBoundingClientRect();
+                if (rect.bottom <= safeZone) {
+                    clearInterval(checkInterval);
+                    if (!isPopped && bubble.parentNode) {
+                        isRising = false;
+                        bubble.parentNode.removeChild(bubble);
+                        loseLife();
+                    }
+                }
+            }, 100);
+
+            // 设置泡泡的最大存活时间
             setTimeout(() => {
                 if (!isPopped && bubble.parentNode) {
+                    isRising = false;
                     bubble.parentNode.removeChild(bubble);
-                    loseLife();
                 }
-            }, speed * 1000);
+            }, speed * 1000 + 500); // 额外添加500ms缓冲时间
         }
 
         function loseLife() {
@@ -367,19 +398,30 @@
                 clearInterval(bubbleInterval);
             }
             
-            bubbleInterval = setInterval(createBubble, 1000);
+            // 降低泡泡生成频率
+            bubbleInterval = setInterval(createBubble, 1200);
 
-            for(let i = 0; i < 5; i++) {
-                setTimeout(() => createBubble(), i * 200);
+            // 初始泡泡逐个生成
+            for(let i = 0; i < 3; i++) {
+                setTimeout(() => createBubble(), i * 400);
             }
         }
 
         startBtn.addEventListener('click', startGame);
         restartBtn.addEventListener('click', startGame);
 
-        // 防止页面滚动和缩放
+        // 阻止页面滚动和缩放
         document.addEventListener('touchmove', (e) => {
-            e.preventDefault();
+            if (e.touches.length === 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // 阻止双指缩放
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
         }, { passive: false });
     </script>
 </body>
