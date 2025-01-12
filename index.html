@@ -2,9 +2,15 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>泡泡戳戳乐</title>
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             margin: 0;
             overflow: hidden;
@@ -13,13 +19,20 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            min-height: 100vh;
+            position: fixed;
+            width: 100%;
         }
+
         #game-container {
-            width: 100vw;
+            width: 100%;
             height: 100vh;
-            position: relative;
-            touch-action: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow: hidden;
         }
+
         .bubble {
             position: absolute;
             border-radius: 50%;
@@ -28,14 +41,20 @@
             justify-content: center;
             align-items: center;
             animation: float 4s infinite ease-in-out;
+            pointer-events: auto;
+            transform-origin: center center;
+            will-change: transform;
         }
+
         .bubble-normal {
             background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(255,255,255,0.4));
         }
+
         .bubble-golden {
             background: radial-gradient(circle at 30% 30%, rgba(255,215,0,0.8), rgba(218,165,32,0.4));
             box-shadow: 0 0 10px rgba(255,215,0,0.6);
         }
+
         .bubble-rainbow {
             background: radial-gradient(circle at 30% 30%, 
                 rgba(255,0,0,0.4), 
@@ -45,18 +64,22 @@
                 rgba(0,0,255,0.4));
             animation: rainbow 2s linear infinite;
         }
+
         @keyframes rainbow {
             0% { filter: hue-rotate(0deg); }
             100% { filter: hue-rotate(360deg); }
         }
+
         @keyframes float {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-20px); }
         }
+
         .pop {
-            animation: pop 0.3s ease-out;
-            opacity: 0;
+            animation: pop 0.3s ease-out forwards;
+            pointer-events: none;
         }
+
         @keyframes pop {
             0% {
                 transform: scale(1);
@@ -67,30 +90,45 @@
                 opacity: 0;
             }
         }
-        #score, #life {
+
+        .hud {
             position: fixed;
-            font-size: 24px;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 100;
+        }
+
+        #score, #life {
+            font-size: 20px;
             color: white;
             font-family: Arial, sans-serif;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            z-index: 1000;
+            padding: 5px 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 5px;
         }
-        #score { top: 20px; }
-        #life { top: 60px; }
-        
+
         .btn {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             padding: 15px 30px;
-            font-size: 20px;
+            font-size: 18px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             z-index: 1000;
+            touch-action: manipulation;
+        }
+
+        #start-btn {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
 
         #game-over {
@@ -107,20 +145,25 @@
             width: 80%;
             max-width: 300px;
         }
+
         #game-over h2 {
             color: white;
             margin-bottom: 20px;
+            font-size: 24px;
         }
+
         #final-score {
             color: yellow;
-            font-size: 24px;
+            font-size: 22px;
             margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <div id="score">得分: 0</div>
-    <div id="life">生命值: 3</div>
+    <div class="hud">
+        <div id="score">得分: 0</div>
+        <div id="life">生命值: 3</div>
+    </div>
     <button id="start-btn" class="btn">点击开始游戏</button>
     <div id="game-container"></div>
     <div id="game-over">
@@ -143,7 +186,14 @@
         
         let audioContext;
         let bubbleInterval;
-        
+
+        // 防止双击缩放
+        document.addEventListener('touchstart', function(event) {
+            if (event.touches.length > 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+
         function initAudio() {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
@@ -212,28 +262,30 @@
             const type = bubbleTypes[Math.floor(Math.random() * bubbleTypes.length)];
             bubble.classList.add(`bubble-${type}`);
             
-            const size = Math.random() * 50 + 30;
-            bubble.style.width = size + 'px';
-            bubble.style.height = size + 'px';
+            // 限制泡泡大小范围
+            const size = Math.random() * 30 + 30; // 30-60px
+            bubble.style.width = `${size}px`;
+            bubble.style.height = `${size}px`;
             
-            const maxX = window.innerWidth - size;
-            const maxY = window.innerHeight - size;
-            bubble.style.left = Math.random() * maxX + 'px';
+            // 确保泡泡在视口内
+            const maxX = container.clientWidth - size;
+            bubble.style.left = Math.max(0, Math.min(maxX, Math.random() * maxX)) + 'px';
             bubble.style.bottom = '0px';
 
-            const speed = 2 + Math.random() * 3;
+            const speed = 2 + Math.random() * 2; // 减小速度变化范围
             bubble.style.transition = `bottom ${speed}s linear`;
 
-            container.appendChild(bubble);
-
-            requestAnimationFrame(() => {
-                bubble.style.bottom = window.innerHeight + 'px';
-            });
-
-            bubble.addEventListener('pointerdown', (e) => {
+            let isPopped = false;
+            
+            const popBubble = (e) => {
+                if (isPopped) return; // 防止多次点击
+                isPopped = true;
+                
                 e.preventDefault();
-                if (bubble.classList.contains('pop')) return; // 防止多次点击
+                e.stopPropagation();
+                
                 bubble.classList.add('pop');
+                bubble.style.pointerEvents = 'none';
                 
                 let points;
                 switch(type) {
@@ -245,13 +297,27 @@
                 score += points;
                 scoreElement.textContent = `得分: ${score}`;
                 playPopSound(type);
-                setTimeout(() => bubble.remove(), 300);
+                
+                setTimeout(() => {
+                    if (bubble.parentNode) {
+                        bubble.parentNode.removeChild(bubble);
+                    }
+                }, 300);
+            };
+
+            bubble.addEventListener('touchstart', popBubble, { passive: false });
+            bubble.addEventListener('mousedown', popBubble);
+
+            container.appendChild(bubble);
+
+            requestAnimationFrame(() => {
+                bubble.style.bottom = '100vh';
             });
 
             setTimeout(() => {
-                if (container.contains(bubble)) {
-                    bubble.remove();
-                    loseLife(); // 泡泡未被点击逃脱时减少生命值
+                if (!isPopped && bubble.parentNode) {
+                    bubble.parentNode.removeChild(bubble);
+                    loseLife();
                 }
             }, speed * 1000);
         }
@@ -276,6 +342,7 @@
             
             finalScoreElement.textContent = `最终得分: ${score}`;
             gameOverScreen.style.display = 'block';
+            startBtn.style.display = 'none';
         }
 
         function startGame() {
@@ -291,16 +358,26 @@
                 initAudio();
             }
             
+            // 清除所有现有泡泡
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            
+            if (bubbleInterval) {
+                clearInterval(bubbleInterval);
+            }
+            
             bubbleInterval = setInterval(createBubble, 1000);
 
             for(let i = 0; i < 5; i++) {
-                createBubble();
+                setTimeout(() => createBubble(), i * 200);
             }
         }
 
         startBtn.addEventListener('click', startGame);
         restartBtn.addEventListener('click', startGame);
 
+        // 防止页面滚动和缩放
         document.addEventListener('touchmove', (e) => {
             e.preventDefault();
         }, { passive: false });
